@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard Manga</title>
+<style>
+:root{--paper:#f4f1e8;--ink:#111;--hit:#ff5a00;--tone:#cfcabb}
+*{box-sizing:border-box;margin:0}
+html,body{height:100%}
+body{background:var(--ink);font-family:Impact,"Arial Black",sans-serif;color:var(--ink);overflow:hidden;cursor:none}
+#dim{position:fixed;inset:0;background:#000;opacity:0;pointer-events:none;z-index:50;transition:opacity 2s}
+.page{height:100%;display:grid;gap:1.2vmin;padding:1.6vmin;grid-template-columns:1.5fr 1fr;grid-template-rows:1.3fr 1fr;grid-template-areas:"clock side" "cal music"}
+.panel{position:relative;background:var(--paper);border:.7vmin solid var(--ink);outline:.35vmin solid var(--paper);overflow:hidden;padding:2vmin}
+.tone::before{content:"";position:absolute;inset:0;background:radial-gradient(var(--tone) 22%,transparent 24%) 0 0/9px 9px;opacity:.7}
+.panel>*{position:relative}
+.clock{grid-area:clock;display:flex;flex-direction:column;align-items:center;justify-content:center;background:repeating-conic-gradient(from 0deg at 50% 50%,var(--paper) 0 3deg,#d9d4c4 3deg 3.6deg,var(--paper) 3.6deg 7deg)}
+.clock::after{content:"";position:absolute;inset:0;background:radial-gradient(circle at 50% 50%,var(--paper) 22%,transparent 60%)}
+.clock>*{z-index:1}
+#time{font-size:min(19vw,32vh);line-height:1;letter-spacing:.03em;-webkit-text-stroke:.5vmin var(--ink);text-shadow:.9vmin .9vmin 0 var(--hit)}
+#date{font-size:min(4vw,5.4vh);margin-top:1vmin;background:var(--ink);color:var(--paper);padding:.5vmin 2vmin;transform:skew(-8deg);text-transform:uppercase}
+.sfx{position:absolute;top:1.5vmin;left:2vmin;font-size:min(3.4vw,5vh);color:var(--hit);-webkit-text-stroke:.25vmin var(--ink);transform:rotate(-8deg);z-index:2}
+.side{grid-area:side;display:flex;flex-direction:column;justify-content:center}
+.tag{display:inline-block;background:var(--ink);color:var(--paper);font-size:min(2.2vw,2.8vh);padding:.4vmin 1.4vmin;margin-bottom:1vmin;width:max-content}
+#temp{font-size:min(9vw,13vh);line-height:1;-webkit-text-stroke:.35vmin var(--ink);color:var(--hit);text-shadow:.6vmin .6vmin 0 var(--ink)}
+#wx{font-family:"Trebuchet MS",sans-serif;font-weight:800;font-size:min(2.4vw,3.2vh);margin:.6vmin 0 1vmin}
+#fc{display:flex;gap:1vmin;font-family:"Trebuchet MS",sans-serif;font-weight:800;font-size:min(1.9vw,2.5vh)}
+#fc div{flex:1;border:.35vmin solid var(--ink);background:var(--paper);padding:.6vmin;text-align:center}
+.cal{grid-area:cal;display:flex;flex-direction:column}
+.cal h2{font-size:min(3vw,4vh);font-weight:400;text-transform:uppercase;margin-bottom:.8vmin}
+#grid{flex:1;display:grid;grid-template-columns:repeat(7,1fr);gap:.4vmin;font-family:"Trebuchet MS",sans-serif;font-weight:800;text-align:center;font-size:min(2.2vw,3vh)}
+#grid .h{font-family:Impact,sans-serif;font-weight:400;color:var(--hit)}
+#grid .d{display:flex;align-items:center;justify-content:center}
+#grid .today{background:var(--ink);color:var(--paper);border-radius:50%;box-shadow:0 0 0 .4vmin var(--hit)}
+.music{grid-area:music;padding:0;background:var(--ink);display:flex;flex-direction:column}
+.bar{display:flex;align-items:center;justify-content:space-between;padding:1vmin}
+.music .tag{margin:0;background:var(--hit);color:var(--ink)}
+#cfg{cursor:pointer;background:var(--paper);border:.3vmin solid var(--paper);font-size:min(2.6vw,3.2vh);padding:.2vmin 1.2vmin;font-family:inherit}
+.music iframe{flex:1;width:100%;min-height:152px;border:0}
+@media (max-aspect-ratio:1/1){body{overflow:auto}.page{height:auto;grid-template-columns:1fr;grid-template-areas:"clock" "side" "cal" "music"}.clock{min-height:40vh}#time{font-size:24vw}.cal{min-height:50vh}}
+</style>
+</head>
+<body>
+<div id="dim"></div>
+<main class="page">
+  <section class="panel clock" id="clock"><span class="sfx" id="sfx">ZUUUM!</span><div id="time">--:--</div><div id="date"></div></section>
+  <section class="panel side tone">
+    <span class="tag">Meteo · Castellana Grotte</span>
+    <div id="temp">--</div><div id="wx">Caricamento…</div><div id="fc"></div>
+  </section>
+  <section class="panel cal tone"><h2 id="mese"></h2><div id="grid"></div></section>
+  <section class="panel music">
+    <div class="bar"><span class="tag">Spotify</span><button id="cfg" title="Cambia playlist">⚙</button></div>
+    <iframe id="sp" allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"></iframe>
+  </section>
+</main>
+<script>
+const LAT=40.8864, LON=17.1624;
+const DEFAULT_SP="https://open.spotify.com/embed/playlist/37i9dQZF1DXcBWIGoYBM5M?theme=0";
+const codes={0:"Sereno",1:"Quasi sereno",2:"Parz. nuvoloso",3:"Coperto",45:"Nebbia",48:"Nebbia",51:"Pioggerella",53:"Pioggerella",55:"Pioggerella",61:"Pioggia",63:"Pioggia",65:"Pioggia forte",71:"Neve",80:"Rovesci",81:"Rovesci",82:"Rovesci forti",95:"Temporale",96:"Temporale",99:"Temporale"};
+const $=id=>document.getElementById(id);
+const store={get:k=>{try{return localStorage.getItem(k)}catch(e){return null}},set:(k,v)=>{try{localStorage.setItem(k,v)}catch(e){}},del:k=>{try{localStorage.removeItem(k)}catch(e){}}};
+let lastDay=-1;
+function calendar(d){
+  $("mese").textContent=d.toLocaleDateString("it-IT",{month:"long",year:"numeric"});
+  let h="";["L","M","M","G","V","S","D"].forEach(x=>h+=`<div class="h d">${x}</div>`);
+  const first=(new Date(d.getFullYear(),d.getMonth(),1).getDay()+6)%7,n=new Date(d.getFullYear(),d.getMonth()+1,0).getDate();
+  for(let i=0;i<first;i++)h+="<div></div>";
+  for(let i=1;i<=n;i++)h+=`<div class="d${i===d.getDate()?" today":""}">${i}</div>`;
+  $("grid").innerHTML=h;
+}
+function tick(){
+  const d=new Date(),H=d.getHours();
+  $("time").textContent=d.toLocaleTimeString("it-IT",{hour:"2-digit",minute:"2-digit"});
+  $("date").textContent=d.toLocaleDateString("it-IT",{weekday:"long",day:"numeric",month:"long"});
+  $("sfx").textContent=H<6?"ZZZ...":H<12?"OHAYO!":H<18?"ZUUUM!":H<23?"DON!":"ZZZ...";
+  $("dim").style.opacity=(H>=23||H<7)?".8":"0";
+  if(d.getDate()!==lastDay){lastDay=d.getDate();calendar(d);}
+}
+function showWx(o){
+  $("temp").textContent=o.t+"°";$("wx").textContent=o.w;
+  $("fc").innerHTML=o.f.map(x=>`<div>${x.d}<br>${x.max}°/${x.min}°<br>${x.c}</div>`).join("");
+}
+async function weather(){
+  try{
+    const r=await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LON}&current=temperature_2m,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min&forecast_days=4&timezone=auto`);
+    const j=await r.json(),c=j.current,dl=j.daily;
+    const o={t:Math.round(c.temperature_2m),w:(codes[c.weather_code]||"Variabile")+" · vento "+Math.round(c.wind_speed_10m)+" km/h",
+      f:[1,2,3].map(i=>({d:new Date(dl.time[i]).toLocaleDateString("it-IT",{weekday:"short"}),max:Math.round(dl.temperature_2m_max[i]),min:Math.round(dl.temperature_2m_min[i]),c:codes[dl.weather_code[i]]||"Variabile"}))};
+    store.set("wx",JSON.stringify(o));showWx(o);
+  }catch(e){
+    const s=store.get("wx");
+    if(s)showWx(JSON.parse(s));else $("wx").textContent="Meteo non disponibile (serve internet)";
+  }
+}
+function toEmbed(u){
+  const m=u.match(/open\.spotify\.com\/(?:intl-[a-z]+\/)?(playlist|album|track|artist|show|episode)\/([A-Za-z0-9]+)/);
+  return m?`https://open.spotify.com/embed/${m[1]}/${m[2]}?theme=0`:null;
+}
+$("sp").src=store.get("sp")||DEFAULT_SP;
+$("cfg").onclick=()=>{
+  const u=prompt("Incolla il link Spotify (playlist, album, artista...). Lascia vuoto per tornare a quella iniziale.");
+  if(u===null)return;
+  if(u.trim()===""){store.del("sp");$("sp").src=DEFAULT_SP;return;}
+  const e=toEmbed(u.trim());
+  if(e){store.set("sp",e);$("sp").src=e;}else alert("Link non valido: usa Condividi > Copia link su Spotify.");
+};
+$("clock").onclick=()=>{const e=document.documentElement;document.fullscreenElement?document.exitFullscreen():(e.requestFullscreen&&e.requestFullscreen().catch(()=>{}));};
+async function keepAwake(){try{if(navigator.wakeLock)await navigator.wakeLock.request("screen");}catch(e){}}
+document.addEventListener("visibilitychange",()=>{if(!document.hidden)keepAwake();});
+keepAwake();
+tick();setInterval(tick,1000);
+weather();setInterval(weather,600000);
+// ricarica automatica alle 4 di notte per tenere tutto aggiornato
+setInterval(()=>{const d=new Date();if(d.getHours()===4&&d.getMinutes()===0&&d.getSeconds()<30)location.reload();},30000);
+</script>
+</body>
+</html>
